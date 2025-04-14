@@ -56,7 +56,7 @@ def predict_rub_salary_hh(lang):
 def request_to_api_super_job(lang):
     url = '	https://api.superjob.ru/2.0/vacancies/'
     headers = {
-        'X-Api-App-Id': os.getenv('X-Api-App-Id'),
+        'X-Api-App-Id': os.getenv('superjob_token'),
     }
     page = 0
     results = []
