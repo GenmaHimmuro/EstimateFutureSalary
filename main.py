@@ -1,3 +1,4 @@
+from pprint import pprint
 import requests
 import statistics
 import os
@@ -8,16 +9,13 @@ from terminaltables import AsciiTable
 VACANCIES_PER_PAGE_ON_HH = 100
 MAX_PAGES_ON_HH = 20
 ID_MOSCOW_AREA_ON_HH = 1
-VACANCIES_PER_PAGE_ON_SJ = 100
-KEY_OF_CATALOG_SJ = 48
+COUNT_VACANCIES_ON_PAGE_SJ = 100
 CITY_NAME_ON_SJ = 'Moscow'
 
 
 def get_request_to_api_hh(lang):
     page = 0
-    vacancies_filtered_by_lang_on_hh = []
-
-    while page < MAX_PAGES_ON_HH:
+    while True:
         payload = {
             'area': ID_MOSCOW_AREA_ON_HH,
             'text': f'Программист {lang}',
@@ -28,37 +26,35 @@ def get_request_to_api_hh(lang):
         url = 'https://api.hh.ru/vacancies'
         response = requests.get(url, params=payload)
         response.raise_for_status()
-        request_result_json = response.json()
-        vacancies_filtered_by_lang_on_hh.append(request_result_json)
         page += 1
-
-    return {
-        lang: vacancies_filtered_by_lang_on_hh
-    }
+        vacancies_hh = response.json()
+        return vacancies_hh
 
 
 def get_predict_rub_salary_hh(lang):
-    vacancies = get_request_to_api_hh(lang)[lang][0]['items']
-
+    vacancies_hh = get_request_to_api_hh(lang)['items']
     salaries = []
-    for salary_of_vacancies in vacancies:
+    for salary_of_vacancies in vacancies_hh:
         salary = salary_of_vacancies.get('salary')
         salaries.append(salary)
-
     salary_expectations = []
-    for predict in salaries:
-        if predict:
+    for predict_salary in salaries:
+        if predict_salary:
+            salary_expectations.extend(
+                get_middle_salary_expectations(predict_salary['from'], predict_salary['to'])
+            )
+    return salary_expectations
 
-            if predict['to'] and predict['from']:
-                salary_expectations.append((predict['to'] + predict['from'])/2)
 
-            elif predict['from']:
-                salary_expectations.append(predict['from']*1.2)
-
-            elif predict['to']:
-                salary_expectations.append(predict['to']*0.8)
-
-    return [lang, len(vacancies), len(salary_expectations), statistics.mean(salary_expectations)]
+def get_middle_salary_expectations(payment_from,payment_to):
+    middle_salary_expectations = []
+    if payment_to and payment_from:
+        middle_salary_expectations.append((payment_to + payment_from) / 2)
+    elif payment_from:
+        middle_salary_expectations.append(payment_from * 1.2)
+    elif payment_to:
+        middle_salary_expectations.append(payment_to * 0.8)
+    return middle_salary_expectations
 
 
 def get_request_to_api_super_job(lang):
@@ -66,46 +62,44 @@ def get_request_to_api_super_job(lang):
     headers = {
         'X-Api-App-Id': os.getenv('superjob_token'),
     }
-    vacancies_filtered_by_lang_on_sj = []
-    payload = {
-        "keyword": f"Программист {lang}",
-        'town': CITY_NAME_ON_SJ,
-    }
-    response = requests.get(url, headers=headers, params=payload)
-    response.raise_for_status()
-    request_result_json = response.json()
-    vacancies_filtered_by_lang_on_sj.append(request_result_json)
+    page = 0
+    while True:
+        payload = {
+            "keyword": f"Программист {lang}",
+            'town': CITY_NAME_ON_SJ,
+            'page': page,
+            'count': COUNT_VACANCIES_ON_PAGE_SJ
+        }
+        response = requests.get(url, headers=headers, params=payload)
+        response.raise_for_status()
+        vacancies_sj = response.json()
+        if vacancies_sj['objects']:
+            break
+        page += 1
+    return vacancies_sj
 
-    return {
-        lang: vacancies_filtered_by_lang_on_sj
-    }
 
-
-def get_predict_rub_salary_for_superJob(lang):
-    vacancies = get_request_to_api_super_job(lang)[lang][0]['objects']
-
+def get_predict_rub_salary_sj(lang):
+    vacancies_sj = get_request_to_api_super_job(lang)['objects']
     salary_expectations = []
-    for vacancy in vacancies:
-
-        payment_from = vacancy.get('payment_from')
-        payment_to = vacancy.get('payment_to')
-
-        if payment_from and payment_to:
-            salary_expectations.append((payment_from+payment_to)/2)
-
-        elif payment_from:
-            salary_expectations.append(payment_from*1.2)
-
-        elif payment_to:
-            salary_expectations.append(payment_to*0.8)
-
-    return [lang, len(vacancies), len(salary_expectations), statistics.mean(salary_expectations)]
+    for predict_salary in vacancies_sj:
+        if predict_salary:
+            salary_expectations.extend(
+                get_middle_salary_expectations(predict_salary['payment_from'], predict_salary['payment_to'])
+            )
+    return salary_expectations
 
 
-def get_stats_of_salary(langs, salary_expectations, table_name, table_data):
+def get_stats_of_salary(lang, found_vacancies, salary_expectations):
+    return [lang,
+            found_vacancies,
+            len(salary_expectations),
+            statistics.mean(salary_expectations)]
+
+
+def create_table_with_statistic(stats_of_salary, table_name, table_data):
     current_table_data = [row[:] for row in table_data]
-    for lang in langs:
-        current_table_data.extend([salary_expectations(lang)])
+    current_table_data.extend(stats_of_salary)
     table = AsciiTable(current_table_data, title=table_name)
     print(table.table)
     return table.table
@@ -124,8 +118,23 @@ def main():
          'Вакансий обработано',
          'Средняя зарплата'],
     ]
-    get_stats_of_salary(langs, get_predict_rub_salary_for_superJob, 'SJ MOSCOW', table_data)
-    get_stats_of_salary(langs, get_predict_rub_salary_hh, 'HH MOSCOW', table_data)
+
+    stats_of_salary_hh = []
+    stats_of_salary_sj = []
+    for lang in langs:
+        stats_of_salary_hh.extend(
+            [get_stats_of_salary(lang,
+                                    get_request_to_api_hh(lang)['found'],
+                                    get_predict_rub_salary_hh(lang))]
+        )
+        stats_of_salary_sj.extend(
+            [get_stats_of_salary(lang,
+                                    get_request_to_api_super_job(lang)['total'],
+                                    get_predict_rub_salary_sj(lang))]
+        )
+
+    create_table_with_statistic(stats_of_salary_hh, 'HH MOSCOW', table_data)
+    create_table_with_statistic(stats_of_salary_sj, 'SJ MOSCOW', table_data)
 
 
 if __name__ == "__main__":
