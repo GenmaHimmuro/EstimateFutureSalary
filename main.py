@@ -11,7 +11,7 @@ COUNT_VACANCIES_ON_PAGE_SJ = 100
 CITY_NAME_ON_SJ = 'Moscow'
 
 
-def get_request_to_api_hh(lang):
+def get_request_to_api_hh(lang: str) -> dict[str]:
     page = 0
     while True:
         payload = {
@@ -29,7 +29,7 @@ def get_request_to_api_hh(lang):
         return vacancies_hh
 
 
-def get_predict_rub_salary_hh(vacancies_hh):
+def get_predict_rub_salary_hh(vacancies_hh: dict) -> list[float | int]:
 
     salaries = []
     for salary_of_vacancies in vacancies_hh:
@@ -47,7 +47,7 @@ def get_predict_rub_salary_hh(vacancies_hh):
     return salary_expectations
 
 
-def get_middle_salary_expectations(payment_from, payment_to):
+def get_middle_salary_expectations(payment_from: str | int, payment_to: str | int) -> list[float | int]:
     middle_salary_expectations = []
     if payment_to and payment_from:
         middle_salary_expectations.append((payment_to + payment_from) / 2)
@@ -58,7 +58,7 @@ def get_middle_salary_expectations(payment_from, payment_to):
     return middle_salary_expectations
 
 
-def get_request_to_api_super_job(lang):
+def get_request_to_api_super_job(lang: str) -> dict[str]:
     url = '	https://api.superjob.ru/2.0/vacancies/'
     headers = {
         'X-Api-App-Id': os.getenv('superjob_token'),
@@ -80,7 +80,7 @@ def get_request_to_api_super_job(lang):
     return vacancies_sj
 
 
-def get_predict_rub_salary_sj(vacancies_sj):
+def get_predict_rub_salary_sj(vacancies_sj: dict[str]) -> list[float | int]:
     salary_expectations = []
     for predict_salary in vacancies_sj:
         if predict_salary:
@@ -93,14 +93,14 @@ def get_predict_rub_salary_sj(vacancies_sj):
     return salary_expectations
 
 
-def get_stats_of_salary(lang, found_vacancies, salary_expectations):
+def get_stats_of_salary(lang: str, found_vacancies: str | int, salary_expectations: list[float | int]) -> list[str | float]:
     return [lang,
             found_vacancies,
             len(salary_expectations),
             statistics.mean(salary_expectations)]
 
 
-def create_table_with_statistic(stats_of_salary, table_name, table_data):
+def create_table_with_statistic(stats_of_salary: list, table_name: str, table_data: list) -> str:
     current_table_data = [row[:] for row in table_data]
     current_table_data.extend(stats_of_salary)
     table = AsciiTable(current_table_data, title=table_name)
