@@ -61,7 +61,7 @@ def get_middle_salary_expectations(payment_from: str | int, payment_to: str | in
 def get_request_to_api_super_job(lang: str) -> tuple[list, int]:
     url = '	https://api.superjob.ru/2.0/vacancies/'
     headers = {
-        'X-Api-App-Id': os.getenv('superjob_token'),
+        'X-Api-App-Id': os.getenv('SUPERJOB_TOKEN'),
     }
     page = 0
     all_vacancies_sj = []
