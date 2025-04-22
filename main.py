@@ -11,10 +11,10 @@ COUNT_VACANCIES_ON_PAGE_SJ = 100
 CITY_NAME_ON_SJ = 'Moscow'
 
 
-def get_request_to_api_hh(lang: str) -> dict[str, list | int]:
+def get_request_to_api_hh(lang: str) -> tuple[list, int]:
     page = 0
     url = 'https://api.hh.ru/vacancies'
-    all_vacancies_hh = {'items': [], 'found': 0}
+    all_vacancies_hh = []
     while True:
         payload = {
             'area': ID_MOSCOW_AREA_ON_HH,
@@ -26,26 +26,23 @@ def get_request_to_api_hh(lang: str) -> dict[str, list | int]:
         response = requests.get(url, params=payload)
         response.raise_for_status()
         vacancies_hh = response.json()
-        all_vacancies_hh['items'].extend(vacancies_hh.get('items', []))
-        all_vacancies_hh['found'] = vacancies_hh.get('found', 0)
+        all_vacancies_hh.extend(vacancies_hh.get('items', []))
+        found_vacancies_hh = vacancies_hh.get('found', 0)
         max_pages_from_api_response = vacancies_hh.get('pages', 0)
         page += 1
         if page >= max_pages_from_api_response:
             break
-    return all_vacancies_hh
+    return all_vacancies_hh, found_vacancies_hh
 
 
 def get_rub_salary_hh(vacancies_hh: list[dict[str | int]]) -> list[float | int]:
-    salaries = []
-    for salary_of_vacancies in vacancies_hh:
-        salary = salary_of_vacancies.get('salary')
-        salaries.append(salary)
     salary_expectations = []
-    for predict_salary in salaries:
-        if predict_salary:
+    for vacancy in vacancies_hh:
+        salary = vacancy.get('salary')
+        if salary:
             salary_expectations.append(
-                get_middle_salary_expectations(predict_salary['from'],
-                                               predict_salary['to']))
+                get_middle_salary_expectations(salary['from'], salary['to'])
+            )
     return salary_expectations
 
 
@@ -61,13 +58,13 @@ def get_middle_salary_expectations(payment_from: str | int, payment_to: str | in
         return middle_salary_expectations
 
 
-def get_request_to_api_super_job(lang: str) -> dict[str, list]:
+def get_request_to_api_super_job(lang: str) -> tuple[list, int]:
     url = '	https://api.superjob.ru/2.0/vacancies/'
     headers = {
         'X-Api-App-Id': os.getenv('superjob_token'),
     }
     page = 0
-    all_vacancies_sj = {'objects': []}
+    all_vacancies_sj = []
     while True:
         payload = {
             "keyword": f"Программист {lang}",
@@ -78,29 +75,21 @@ def get_request_to_api_super_job(lang: str) -> dict[str, list]:
         response = requests.get(url, headers=headers, params=payload)
         response.raise_for_status()
         vacancies_sj = response.json()
-        all_vacancies_sj['objects'].extend(vacancies_sj.get('objects', []))
-        all_vacancies_sj['total'] = vacancies_sj.get('total', 0)
+        all_vacancies_sj.extend(vacancies_sj.get('objects', []))
+        found_vacancies_sj = vacancies_sj.get('total', 0)
         if not vacancies_sj["more"]:
             break
         page += 1
-    return all_vacancies_sj
+    return all_vacancies_sj, found_vacancies_sj
 
 
-def get_rub_salary_sj(vacancies_sj: dict[str | int]) -> list[float | int]:
+def get_rub_salary_sj(vacancies_sj: list) -> list[float | int]:
     salary_expectations = []
     for salary in vacancies_sj:
         if salary:
             salary_expectations.append(
-                get_middle_salary_expectations(salary['payment_from'],
-                                               salary['payment_to']))
+                get_middle_salary_expectations(salary['payment_from'], salary['payment_to']))
     return salary_expectations
-
-
-def get_stats_of_salary(lang: str, found_vacancies: list, salary_expectations: dict) -> list[str | float]:
-    return [lang,
-            found_vacancies,
-            len(salary_expectations),
-            round(pd.Series(salary_expectations).mean(), 1)]
 
 
 def create_table_with_statistic(stats_of_salary: list, table_name: str, table_data: list) -> str:
@@ -129,17 +118,23 @@ def main():
 
     for lang in langs:
 
-        all_vacanies_hh = get_request_to_api_hh(lang)['items']
-        found_vacancies_hh = get_request_to_api_hh(lang)['found']
-        all_vacancies_sj = get_request_to_api_super_job(lang)['objects']
-        found_vacancies_sj = get_request_to_api_super_job(lang)['total']
+        all_vacancies_hh, found_vacancies_hh = get_request_to_api_hh(lang)
+        all_vacancies_sj, found_vacancies_sj = get_request_to_api_super_job(lang)
+        salary_expectations_on_hh = get_rub_salary_hh(all_vacancies_hh)
+        salary_expectations_on_sj = get_rub_salary_sj(all_vacancies_sj)
 
-        stats_of_salary_hh.extend(
-            [get_stats_of_salary(lang, found_vacancies_hh,
-                                 get_rub_salary_hh(all_vacanies_hh),)])
-        stats_of_salary_sj.extend(
-            [get_stats_of_salary(lang, found_vacancies_sj,
-                                 get_rub_salary_sj(all_vacancies_sj))])
+        stats_of_salary_hh.extend([[
+            lang,
+            found_vacancies_hh,
+            len(salary_expectations_on_hh),
+            round(pd.Series(salary_expectations_on_hh).mean(), 1)
+        ]])
+        stats_of_salary_sj.extend([[
+            lang,
+            found_vacancies_sj,
+            len(salary_expectations_on_sj),
+            round(pd.Series(salary_expectations_on_sj).mean(), 1)
+        ]])
 
     print(create_table_with_statistic(stats_of_salary_hh,
                                       'HH MOSCOW', table_data))
