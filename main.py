@@ -58,11 +58,8 @@ def get_middle_salary_expectations(payment_from: str | int, payment_to: str | in
         return middle_salary_expectations
 
 
-def get_request_to_api_super_job(lang: str) -> tuple[list, int]:
+def get_request_to_api_super_job(lang: str, headers: dict[str, str | None]) -> tuple[list, int]:
     url = '	https://api.superjob.ru/2.0/vacancies/'
-    headers = {
-        'X-Api-App-Id': os.getenv('SUPERJOB_TOKEN'),
-    }
     page = 0
     all_vacancies_sj = []
     while True:
@@ -112,6 +109,9 @@ def main():
          'Вакансий обработано',
          'Средняя зарплата'],
     ]
+    headers = {
+        'X-Api-App-Id': os.getenv('SUPERJOB_TOKEN'),
+    }
 
     stats_of_salary_hh = []
     stats_of_salary_sj = []
@@ -119,7 +119,7 @@ def main():
     for lang in langs:
 
         all_vacancies_hh, found_vacancies_hh = get_request_to_api_hh(lang)
-        all_vacancies_sj, found_vacancies_sj = get_request_to_api_super_job(lang)
+        all_vacancies_sj, found_vacancies_sj = get_request_to_api_super_job(lang, headers)
         salary_expectations_on_hh = get_rub_salary_hh(all_vacancies_hh)
         salary_expectations_on_sj = get_rub_salary_sj(all_vacancies_sj)
 
