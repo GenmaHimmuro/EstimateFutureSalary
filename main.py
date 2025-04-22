@@ -35,7 +35,7 @@ def get_request_to_api_hh(lang: str) -> tuple[list, int]:
     return all_vacancies_hh, found_vacancies_hh
 
 
-def get_rub_salary_hh(vacancies_hh: list[dict[str | int]]) -> list[float | int]:
+def get_rub_salarys_hh(vacancies_hh: list[dict[str | int]]) -> list[float | int]:
     salary_expectations = []
     for vacancy in vacancies_hh:
         salary = vacancy.get('salary')
@@ -80,7 +80,7 @@ def get_request_to_api_super_job(lang: str, headers: dict[str, str | None]) -> t
     return all_vacancies_sj, found_vacancies_sj
 
 
-def get_rub_salary_sj(vacancies_sj: list) -> list[float | int]:
+def get_rub_salarys_sj(vacancies_sj: list) -> list[float | int]:
     salary_expectations = []
     for salary in vacancies_sj:
         if salary:
@@ -120,8 +120,8 @@ def main():
 
         all_vacancies_hh, found_vacancies_hh = get_request_to_api_hh(lang)
         all_vacancies_sj, found_vacancies_sj = get_request_to_api_super_job(lang, headers)
-        salary_expectations_on_hh = get_rub_salary_hh(all_vacancies_hh)
-        salary_expectations_on_sj = get_rub_salary_sj(all_vacancies_sj)
+        salary_expectations_on_hh = get_rub_salarys_hh(all_vacancies_hh)
+        salary_expectations_on_sj = get_rub_salarys_sj(all_vacancies_sj)
 
         stats_of_salary_hh.extend([[
             lang,
